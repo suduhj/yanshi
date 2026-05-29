@@ -1,0 +1,7 @@
+node_modules
+.next
+coverage
+.git
+prisma/data/*.db
+prisma/data/*.db-*
+开发日志/*.tmp

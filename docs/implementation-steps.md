@@ -1,0 +1,18 @@
+# 执行步骤
+
+## 第一阶段
+
+- 初始化 Next.js、Tailwind CSS、TypeScript、ESLint。
+- 接入 Prisma + SQLite，创建 Task 模型和初始迁移。
+- 建立任务领域测试。
+- 实现任务创建、列表、筛选、状态更新、删除。
+- 预留 DeepSeek API 和 Agent/提醒模块。
+- 增加 Dockerfile、docker-compose、开发日志脚本。
+- 建立 `docs`、`GPT.md` 和每日开发日志维护规范。
+
+## 每次任务完成后
+
+- 运行必要验证命令。
+- 更新当天 `开发日志/YYYY-MM-DD.md`。
+- 如果需求、技术、设计或执行步骤变化，同步更新 `docs`。
+- 如果新增重要文件或工作规则，同步更新 `GPT.md`。
