@@ -1,5 +1,8 @@
 import { z } from "zod";
 
+export const CHINA_TIME_ZONE = "Asia/Shanghai";
+const CHINA_OFFSET_MS = 8 * 60 * 60 * 1000;
+
 export const TASK_TYPES = [
   "coursework",
   "drawing",
@@ -18,12 +21,22 @@ export const TASK_TYPE_LABELS: Record<TaskType, string> = {
   life: "生活杂事",
 };
 
-export const TASK_PRIORITIES = ["low", "medium", "high"] as const;
+export const SYSTEM_PRIORITIES = [
+  "urgent",
+  "high",
+  "mediumHigh",
+  "medium",
+  "low",
+  "lowest",
+] as const;
 
-export const TASK_PRIORITY_LABELS: Record<TaskPriority, string> = {
-  low: "低",
-  medium: "中",
-  high: "高",
+export const SYSTEM_PRIORITY_LABELS: Record<SystemPriority, string> = {
+  urgent: "最高优先级",
+  high: "高优先级",
+  mediumHigh: "中高优先级",
+  medium: "中优先级",
+  low: "低优先级",
+  lowest: "最低优先级",
 };
 
 export const TASK_STATUSES = ["todo", "doing", "done"] as const;
@@ -34,45 +47,59 @@ export const TASK_STATUS_LABELS: Record<TaskStatus, string> = {
   done: "已完成",
 };
 
-export const DUE_FILTERS = ["all", "overdue", "today", "upcoming"] as const;
+export const DUE_FILTERS = ["all", "overdue", "today", "upcoming", "none"] as const;
 
 export const DUE_FILTER_LABELS: Record<DueFilter, string> = {
   all: "全部截止",
   overdue: "已逾期",
   today: "今天",
   upcoming: "未来",
+  none: "无截止",
 };
 
 export type TaskType = (typeof TASK_TYPES)[number];
-export type TaskPriority = (typeof TASK_PRIORITIES)[number];
+export type SystemPriority = (typeof SYSTEM_PRIORITIES)[number];
 export type TaskStatus = (typeof TASK_STATUSES)[number];
 export type DueFilter = (typeof DUE_FILTERS)[number];
 
 export type TaskFilters = {
+  due?: DueFilter;
   status?: TaskStatus | "all";
   type?: TaskType | "all";
-  priority?: TaskPriority | "all";
-  due?: DueFilter;
 };
 
 export type TaskLike = {
+  createdAt?: Date;
+  dueAt: Date | null;
   id?: string;
-  dueAt: Date;
-  priority: TaskPriority;
+  isLongRunning?: boolean;
+  nextAction?: string;
+  notes?: string;
+  source?: string;
   status: TaskStatus;
+  title?: string;
   type: TaskType;
+  updatedAt?: Date;
 };
 
-export const createTaskInputSchema = z.object({
+const baseTaskInputSchema = z.object({
   title: z.string().trim().min(1, "请填写任务标题").max(120, "标题不要超过 120 个字"),
   type: z.enum(TASK_TYPES),
   source: z.string().trim().max(80, "来源不要超过 80 个字").optional().default(""),
-  dueAt: z.preprocess(parseDateTimeInput, z.date()),
-  priority: z.enum(TASK_PRIORITIES).default("medium"),
+  dueAt: z.preprocess(parseChinaDateTimeInput, z.date().nullable()),
   notes: z.string().trim().max(1000, "备注不要超过 1000 个字").optional().default(""),
+  isLongRunning: z.preprocess(parseCheckboxInput, z.boolean()).default(false),
+  nextAction: z.string().trim().max(240, "下一步动作不要超过 240 个字").optional().default(""),
+});
+
+export const createTaskInputSchema = baseTaskInputSchema;
+
+export const updateTaskInputSchema = baseTaskInputSchema.extend({
+  status: z.enum(TASK_STATUSES),
 });
 
 export type CreateTaskInput = z.infer<typeof createTaskInputSchema>;
+export type UpdateTaskInput = z.infer<typeof updateTaskInputSchema>;
 
 export function toTaskStatus(value: FormDataEntryValue | string | null): TaskStatus {
   return TASK_STATUSES.includes(value as TaskStatus) ? (value as TaskStatus) : "todo";
@@ -80,14 +107,12 @@ export function toTaskStatus(value: FormDataEntryValue | string | null): TaskSta
 
 export function toTaskFilters(searchParams: {
   due?: string | string[];
-  priority?: string | string[];
   status?: string | string[];
   type?: string | string[];
 }): TaskFilters {
   return {
     status: pickAllowed(searchParams.status, TASK_STATUSES, "all"),
     type: pickAllowed(searchParams.type, TASK_TYPES, "all"),
-    priority: pickAllowed(searchParams.priority, TASK_PRIORITIES, "all"),
     due: pickAllowed(searchParams.due, DUE_FILTERS, "all"),
   };
 }
@@ -98,10 +123,6 @@ export function matchesTaskFilters(task: TaskLike, filters: TaskFilters, now = n
   }
 
   if (filters.type && filters.type !== "all" && task.type !== filters.type) {
-    return false;
-  }
-
-  if (filters.priority && filters.priority !== "all" && task.priority !== filters.priority) {
     return false;
   }
 
@@ -122,6 +143,10 @@ export function buildTaskSummary(tasks: TaskLike[], now = new Date()) {
         return summary;
       }
 
+      if (task.isLongRunning) {
+        summary.longRunning += 1;
+      }
+
       const bucket = getDueBucket(task.dueAt, now);
       if (bucket === "overdue") {
         summary.overdue += 1;
@@ -129,47 +154,152 @@ export function buildTaskSummary(tasks: TaskLike[], now = new Date()) {
       if (bucket === "today") {
         summary.today += 1;
       }
-      if (bucket === "upcoming") {
-        summary.upcoming += 1;
-      }
 
       return summary;
     },
-    { total: 0, overdue: 0, today: 0, upcoming: 0, done: 0 },
+    { total: 0, overdue: 0, today: 0, longRunning: 0, done: 0 },
   );
 }
 
-function parseDateTimeInput(value: unknown) {
+export function buildTaskSections<T extends TaskLike>(tasks: T[], now = new Date()) {
+  const sorted = [...tasks].sort((a, b) => compareTasks(a, b, now));
+
+  return {
+    todayMustDo: sorted.filter((task) => {
+      const bucket = getDueBucket(task.dueAt, now);
+      return task.status !== "done" && !task.isLongRunning && (bucket === "overdue" || bucket === "today");
+    }),
+    longRunning: sorted.filter((task) => task.status !== "done" && task.isLongRunning),
+    other: sorted.filter((task) => {
+      const bucket = getDueBucket(task.dueAt, now);
+      return task.status !== "done" && !task.isLongRunning && bucket !== "overdue" && bucket !== "today";
+    }),
+    done: sorted.filter((task) => task.status === "done"),
+  };
+}
+
+export function compareTasks(a: TaskLike, b: TaskLike, now = new Date()) {
+  const priorityDiff = priorityRank(getSystemPriority(a, now).value) - priorityRank(getSystemPriority(b, now).value);
+  if (priorityDiff !== 0) {
+    return priorityDiff;
+  }
+
+  const aTime = a.dueAt?.getTime() ?? Number.POSITIVE_INFINITY;
+  const bTime = b.dueAt?.getTime() ?? Number.POSITIVE_INFINITY;
+  if (aTime !== bTime) {
+    return aTime - bTime;
+  }
+
+  return (b.createdAt?.getTime() ?? 0) - (a.createdAt?.getTime() ?? 0);
+}
+
+export function getSystemPriority(task: Pick<TaskLike, "dueAt"> & { status?: TaskStatus }, now = new Date()) {
+  if (task.status === "done") {
+    return { value: "lowest" as const, label: SYSTEM_PRIORITY_LABELS.lowest };
+  }
+
+  if (!task.dueAt) {
+    return { value: "low" as const, label: SYSTEM_PRIORITY_LABELS.low };
+  }
+
+  const days = diffChinaDays(task.dueAt, now);
+
+  if (days <= 0) {
+    return { value: "urgent" as const, label: SYSTEM_PRIORITY_LABELS.urgent };
+  }
+  if (days === 1) {
+    return { value: "high" as const, label: SYSTEM_PRIORITY_LABELS.high };
+  }
+  if (days <= 3) {
+    return { value: "mediumHigh" as const, label: SYSTEM_PRIORITY_LABELS.mediumHigh };
+  }
+  if (days <= 7) {
+    return { value: "medium" as const, label: SYSTEM_PRIORITY_LABELS.medium };
+  }
+
+  return { value: "low" as const, label: SYSTEM_PRIORITY_LABELS.low };
+}
+
+export function formatChinaDateTime(date: Date | null) {
+  if (!date) {
+    return "无截止时间";
+  }
+
+  return new Intl.DateTimeFormat("zh-CN", {
+    dateStyle: "medium",
+    timeStyle: "short",
+    timeZone: CHINA_TIME_ZONE,
+  }).format(date);
+}
+
+export function toChinaDateTimeInput(date: Date | null) {
+  if (!date) {
+    return "";
+  }
+
+  const chinaDate = new Date(date.getTime() + CHINA_OFFSET_MS);
+  return chinaDate.toISOString().slice(0, 16);
+}
+
+function parseChinaDateTimeInput(value: unknown) {
   if (value instanceof Date) {
     return value;
   }
 
   if (typeof value !== "string" || value.trim().length === 0) {
-    return undefined;
+    return null;
   }
 
-  const normalized = value.includes("T") && !value.endsWith("Z") ? `${value}:00.000Z` : value;
-  const date = new Date(normalized);
+  const match = value.trim().match(/^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})/);
+  if (!match) {
+    const date = new Date(value);
+    return Number.isNaN(date.getTime()) ? null : date;
+  }
 
-  return Number.isNaN(date.getTime()) ? undefined : date;
+  const [, year, month, day, hour, minute] = match;
+  return new Date(
+    Date.UTC(Number(year), Number(month) - 1, Number(day), Number(hour), Number(minute)) -
+      CHINA_OFFSET_MS,
+  );
 }
 
-function getDueBucket(dueAt: Date, now: Date): DueFilter {
-  const start = new Date(now);
-  start.setHours(0, 0, 0, 0);
+function parseCheckboxInput(value: unknown) {
+  return value === "on" || value === "true" || value === true;
+}
 
-  const end = new Date(start);
-  end.setDate(end.getDate() + 1);
-
-  if (dueAt < start) {
-    return "overdue";
+function getDueBucket(dueAt: Date | null, now: Date): DueFilter {
+  if (!dueAt) {
+    return "none";
   }
 
-  if (dueAt >= start && dueAt < end) {
+  const days = diffChinaDays(dueAt, now);
+  if (days < 0) {
+    return "overdue";
+  }
+  if (days === 0) {
     return "today";
   }
 
   return "upcoming";
+}
+
+function diffChinaDays(target: Date, now: Date) {
+  const targetStart = getChinaDayStartUtcMs(target);
+  const nowStart = getChinaDayStartUtcMs(now);
+  return Math.round((targetStart - nowStart) / 86_400_000);
+}
+
+function getChinaDayStartUtcMs(date: Date) {
+  const chinaDate = new Date(date.getTime() + CHINA_OFFSET_MS);
+  return Date.UTC(
+    chinaDate.getUTCFullYear(),
+    chinaDate.getUTCMonth(),
+    chinaDate.getUTCDate(),
+  ) - CHINA_OFFSET_MS;
+}
+
+function priorityRank(priority: SystemPriority) {
+  return SYSTEM_PRIORITIES.indexOf(priority);
 }
 
 function pickAllowed<const T extends readonly string[]>(

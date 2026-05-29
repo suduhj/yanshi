@@ -17,10 +17,12 @@ model Task {
   title     String
   type      String
   source    String   @default("")
-  dueAt     DateTime
+  dueAt     DateTime?
   priority  String   @default("medium")
   status    String   @default("todo")
   notes     String   @default("")
+  isLongRunning Boolean @default(false)
+  nextAction String   @default("")
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 

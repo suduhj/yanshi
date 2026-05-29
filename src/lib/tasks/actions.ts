@@ -1,9 +1,10 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { redirect } from "next/navigation";
 
-import { createTaskInputSchema, toTaskStatus } from "./domain";
-import { createTask, deleteTask, updateTaskStatus } from "./service";
+import { createTaskInputSchema, updateTaskInputSchema } from "./domain";
+import { createTask, deleteTask, updateTask } from "./service";
 
 export async function createTaskAction(formData: FormData) {
   const payload = Object.fromEntries(formData.entries());
@@ -13,16 +14,19 @@ export async function createTaskAction(formData: FormData) {
   revalidatePath("/");
 }
 
-export async function updateTaskStatusAction(formData: FormData) {
+export async function updateTaskAction(formData: FormData) {
   const id = String(formData.get("id") ?? "");
-  const status = toTaskStatus(formData.get("status"));
 
   if (!id) {
     return;
   }
 
-  await updateTaskStatus(id, status);
+  const payload = Object.fromEntries(formData.entries());
+  const input = updateTaskInputSchema.parse(payload);
+
+  await updateTask(id, input);
   revalidatePath("/");
+  redirect("/");
 }
 
 export async function deleteTaskAction(formData: FormData) {
