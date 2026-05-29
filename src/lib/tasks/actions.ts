@@ -3,30 +3,43 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 
-import { createTaskInputSchema, updateTaskInputSchema } from "./domain";
+import type { TaskFormState } from "./form-state";
+import { parseCreateTaskForm, parseUpdateTaskForm } from "./form-state";
 import { createTask, deleteTask, updateTask } from "./service";
 
-export async function createTaskAction(formData: FormData) {
-  const payload = Object.fromEntries(formData.entries());
-  const input = createTaskInputSchema.parse(payload);
+export async function createTaskAction(_prevState: TaskFormState, formData: FormData) {
+  const parsed = parseCreateTaskForm(formData);
 
-  await createTask(input);
+  if (!parsed.ok) {
+    return parsed.state;
+  }
+
+  await createTask(parsed.input);
   revalidatePath("/");
+  redirect("/?notice=created");
 }
 
-export async function updateTaskAction(formData: FormData) {
+export async function updateTaskAction(_prevState: TaskFormState, formData: FormData) {
   const id = String(formData.get("id") ?? "");
 
   if (!id) {
-    return;
+    return {
+      errors: { id: ["任务不存在"] },
+      message: "请检查任务信息",
+      status: "error" as const,
+      values: {},
+    };
   }
 
-  const payload = Object.fromEntries(formData.entries());
-  const input = updateTaskInputSchema.parse(payload);
+  const parsed = parseUpdateTaskForm(formData);
 
-  await updateTask(id, input);
+  if (!parsed.ok) {
+    return parsed.state;
+  }
+
+  await updateTask(id, parsed.input);
   revalidatePath("/");
-  redirect("/");
+  redirect("/?notice=updated");
 }
 
 export async function deleteTaskAction(formData: FormData) {
@@ -38,4 +51,5 @@ export async function deleteTaskAction(formData: FormData) {
 
   await deleteTask(id);
   revalidatePath("/");
+  redirect("/?notice=deleted");
 }

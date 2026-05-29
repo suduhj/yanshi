@@ -1,5 +1,7 @@
 import Link from "next/link";
 
+import { TaskCreateForm } from "@/app/components/task-create-form";
+import { TaskDeleteForm } from "@/app/components/task-delete-form";
 import {
   DUE_FILTER_LABELS,
   DUE_FILTERS,
@@ -15,7 +17,6 @@ import {
   type TaskStatus,
   type TaskType,
 } from "@/lib/tasks/domain";
-import { createTaskAction, deleteTaskAction } from "@/lib/tasks/actions";
 import { listTasks, type TaskView } from "@/lib/tasks/service";
 
 type PageProps = {
@@ -28,6 +29,7 @@ export default async function Home({ searchParams }: PageProps) {
   const tasks = await listTasks(filters);
   const summary = buildTaskSummary(tasks);
   const sections = buildTaskSections(tasks);
+  const notice = getNotice(params.notice);
 
   return (
     <main className="mx-auto flex min-h-screen w-full max-w-6xl flex-col gap-6 px-4 py-6 sm:px-6 lg:px-8">
@@ -45,64 +47,16 @@ export default async function Home({ searchParams }: PageProps) {
         </div>
       </header>
 
+      {notice ? (
+        <div className="border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800">
+          {notice}
+        </div>
+      ) : null}
+
       <section className="grid gap-6 lg:grid-cols-[360px_1fr]">
         <aside className="border border-neutral-200 bg-white p-4">
           <h2 className="text-base font-semibold text-neutral-950">新增任务</h2>
-          <form action={createTaskAction} className="mt-4 grid gap-3">
-            <label className="grid gap-1 text-sm">
-              <span className="text-neutral-600">标题</span>
-              <input
-                className="field"
-                name="title"
-                placeholder="例如：周五前交成图作业"
-                required
-              />
-            </label>
-
-            <label className="grid gap-1 text-sm">
-              <span className="text-neutral-600">类型</span>
-              <select className="field" name="type" defaultValue="coursework">
-                {TASK_TYPES.map((type) => (
-                  <option key={type} value={type}>
-                    {TASK_TYPE_LABELS[type]}
-                  </option>
-                ))}
-              </select>
-            </label>
-
-            <label className="grid gap-1 text-sm">
-              <span className="text-neutral-600">来源</span>
-              <input className="field" name="source" placeholder="课程、老师、活动或职责来源" />
-            </label>
-
-            <label className="grid gap-1 text-sm">
-              <span className="text-neutral-600">截止时间</span>
-              <input className="field" name="dueAt" type="datetime-local" />
-            </label>
-
-            <label className="flex items-start gap-2 border border-neutral-200 bg-neutral-50 p-3 text-sm text-neutral-700">
-              <input className="mt-1" name="isLongRunning" type="checkbox" />
-              <span>这是大跨度任务 / 需要持续推进</span>
-            </label>
-
-            <label className="grid gap-1 text-sm">
-              <span className="text-neutral-600">下一步动作</span>
-              <input className="field" name="nextAction" placeholder="例如：先完成底图、整理资料、列复习提纲" />
-            </label>
-
-            <label className="grid gap-1 text-sm">
-              <span className="text-neutral-600">备注</span>
-              <textarea
-                className="field min-h-24 resize-y"
-                name="notes"
-                placeholder="补充提交要求、资料位置、注意事项"
-              />
-            </label>
-
-            <button className="mt-1 h-10 border border-neutral-950 bg-neutral-950 px-4 text-sm font-medium text-white transition hover:bg-neutral-800">
-              添加任务
-            </button>
-          </form>
+          <TaskCreateForm />
         </aside>
 
         <section className="flex min-w-0 flex-col gap-4">
@@ -133,22 +87,22 @@ export default async function Home({ searchParams }: PageProps) {
           </form>
 
           <TaskSection
-            emptyText="今天没有必须完成的任务。"
+            emptyText="今天没有必须完成的任务。可以先看看持续推进任务，给长期事项推进一点。"
             tasks={sections.todayMustDo}
             title="今日必须完成"
           />
           <TaskSection
-            emptyText="暂时没有持续推进任务。"
+            emptyText="暂时没有持续推进任务。新增任务时勾选“大跨度任务”，这里会每天提醒你推进。"
             tasks={sections.longRunning}
             title="持续推进任务"
           />
           <TaskSection
-            emptyText="暂无其他任务。"
+            emptyText="暂无其他任务。新的课程作业、活动和生活事项会显示在这里。"
             tasks={sections.other}
             title="其他任务"
           />
           <TaskSection
-            emptyText="暂无已完成任务。"
+            emptyText="暂无已完成任务。完成任务后，它们会沉到这里，方便回顾。"
             tasks={sections.done}
             title="已完成任务"
           />
@@ -214,15 +168,26 @@ function TaskItem({ task }: { task: TaskView }) {
         >
           编辑
         </Link>
-        <form action={deleteTaskAction}>
-          <input name="id" type="hidden" value={task.id} />
-          <button className="h-9 border border-red-200 px-3 text-sm text-red-700 transition hover:border-red-600">
-            删除
-          </button>
-        </form>
+        <TaskDeleteForm taskId={task.id} taskTitle={task.title} />
       </div>
     </li>
   );
+}
+
+function getNotice(value: string | string[] | undefined) {
+  const notice = Array.isArray(value) ? value[0] : value;
+
+  if (notice === "created") {
+    return "任务已添加";
+  }
+  if (notice === "updated") {
+    return "任务已更新";
+  }
+  if (notice === "deleted") {
+    return "任务已删除";
+  }
+
+  return "";
 }
 
 function SummaryItem({
