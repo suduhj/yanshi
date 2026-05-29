@@ -42,10 +42,14 @@ Prisma 会把该路径解析到 `prisma/data/dev.db`。数据库文件不提交�
 
 迁移 `20260529044000_repair_legacy_china_time_offset` 会把旧版本保存过的 `dueAt` 统一减去 8 小时，用于修复此前 `datetime-local` 被当作 UTC 导致的显示偏移。
 
+迁移 `20260529112306_add_daily_and_today_planning` 增加 `isPlannedToday`、`isDaily`、`dailyCompletedOn` 字段，用于今日计划和每日任务。
+
+每日任务的当天完成状态使用中国日期键 `YYYY-MM-DD` 保存到 `dailyCompletedOn`。判断当天是否完成时必须通过中国时间工具函数计算日期键，不能直接使用服务器本地时区。
+
 当前 Windows 中文路径下，Prisma 迁移可能需要先确保 `prisma/data/dev.db` 存在，或通过临时 ASCII 盘符运行：
 
 ```bat
-subst P: "D:\Develop\Vscode\Visual project\新建文件夹"
+subst P: "D:\Develop\Vscode\Visual project\砚时"
 ```
 
 然后在 `P:\` 执行 Prisma 命令。
@@ -55,7 +59,7 @@ subst P: "D:\Develop\Vscode\Visual project\新建文件夹"
 中文目录名下 Docker Compose 可能无法自动推导项目名，建议使用显式项目名：
 
 ```bash
-docker compose -p ai-task-butler up --build
+docker compose -p yanshi up --build
 ```
 
 如果首次构建无法拉取 `node:24-alpine`，先确认 Docker Hub 网络可用。

@@ -9,6 +9,7 @@ export const TASK_TYPES = [
   "exam",
   "activity",
   "league",
+  "competition",
   "life",
 ] as const;
 
@@ -18,6 +19,7 @@ export const TASK_TYPE_LABELS: Record<TaskType, string> = {
   exam: "考试复习",
   activity: "学校活动",
   league: "团支书任务",
+  competition: "竞赛任务",
   life: "生活杂事",
 };
 
@@ -71,8 +73,11 @@ export type TaskFilters = {
 export type TaskLike = {
   createdAt?: Date;
   dueAt: Date | null;
+  dailyCompletedOn?: string | null;
   id?: string;
+  isDaily?: boolean;
   isLongRunning?: boolean;
+  isPlannedToday?: boolean;
   nextAction?: string;
   notes?: string;
   source?: string;
@@ -89,6 +94,8 @@ const baseTaskInputSchema = z.object({
   dueAt: z.preprocess(parseChinaDateTimeInput, z.date().nullable()),
   notes: z.string().trim().max(1000, "备注不要超过 1000 个字").optional().default(""),
   isLongRunning: z.preprocess(parseCheckboxInput, z.boolean()).default(false),
+  isPlannedToday: z.preprocess(parseCheckboxInput, z.boolean()).default(false),
+  isDaily: z.preprocess(parseCheckboxInput, z.boolean()).default(false),
   nextAction: z.string().trim().max(240, "下一步动作不要超过 240 个字").optional().default(""),
 });
 
@@ -138,8 +145,17 @@ export function buildTaskSummary(tasks: TaskLike[], now = new Date()) {
     (summary, task) => {
       summary.total += 1;
 
+      if (task.isPlannedToday) {
+        summary.plannedToday += 1;
+      }
+      if (task.isDaily) {
+        summary.daily += 1;
+      }
+
       if (task.status === "done") {
-        summary.done += 1;
+        if (!task.isDaily) {
+          summary.done += 1;
+        }
         return summary;
       }
 
@@ -157,24 +173,27 @@ export function buildTaskSummary(tasks: TaskLike[], now = new Date()) {
 
       return summary;
     },
-    { total: 0, overdue: 0, today: 0, longRunning: 0, done: 0 },
+    { total: 0, overdue: 0, today: 0, longRunning: 0, plannedToday: 0, daily: 0, done: 0 },
   );
 }
 
 export function buildTaskSections<T extends TaskLike>(tasks: T[], now = new Date()) {
   const sorted = [...tasks].sort((a, b) => compareTasks(a, b, now));
+  const isTodayMustDo = (task: T) => {
+    const bucket = getDueBucket(task.dueAt, now);
+    return !task.isDaily && task.status !== "done" && !task.isLongRunning && (bucket === "overdue" || bucket === "today");
+  };
 
   return {
-    todayMustDo: sorted.filter((task) => {
-      const bucket = getDueBucket(task.dueAt, now);
-      return task.status !== "done" && !task.isLongRunning && (bucket === "overdue" || bucket === "today");
-    }),
-    longRunning: sorted.filter((task) => task.status !== "done" && task.isLongRunning),
+    todayMustDo: sorted.filter(isTodayMustDo),
+    plannedToday: sorted.filter((task) => task.isPlannedToday && !task.isDaily && task.status !== "done" && !isTodayMustDo(task)),
+    daily: sorted.filter((task) => task.isDaily),
+    longRunning: sorted.filter((task) => task.status !== "done" && !task.isDaily && !task.isPlannedToday && task.isLongRunning),
     other: sorted.filter((task) => {
       const bucket = getDueBucket(task.dueAt, now);
-      return task.status !== "done" && !task.isLongRunning && bucket !== "overdue" && bucket !== "today";
+      return task.status !== "done" && !task.isDaily && !task.isPlannedToday && !task.isLongRunning && bucket !== "overdue" && bucket !== "today";
     }),
-    done: sorted.filter((task) => task.status === "done"),
+    done: sorted.filter((task) => task.status === "done" && !task.isDaily),
   };
 }
 
@@ -232,6 +251,25 @@ export function formatChinaDateTime(date: Date | null) {
   }).format(date);
 }
 
+export function formatDueDistance(date: Date | null, now = new Date()) {
+  if (!date) {
+    return "无截止时间";
+  }
+
+  const days = diffChinaDays(date, now);
+  if (days < 0) {
+    return `已逾期 ${Math.abs(days)} 天`;
+  }
+  if (days === 0) {
+    return "今天截止";
+  }
+  if (days === 1) {
+    return "明天截止";
+  }
+
+  return `还有 ${days} 天`;
+}
+
 export function toChinaDateTimeInput(date: Date | null) {
   if (!date) {
     return "";
@@ -239,6 +277,19 @@ export function toChinaDateTimeInput(date: Date | null) {
 
   const chinaDate = new Date(date.getTime() + CHINA_OFFSET_MS);
   return chinaDate.toISOString().slice(0, 16);
+}
+
+export function getChinaDateKey(date = new Date()) {
+  const chinaDate = new Date(date.getTime() + CHINA_OFFSET_MS);
+  const year = chinaDate.getUTCFullYear();
+  const month = String(chinaDate.getUTCMonth() + 1).padStart(2, "0");
+  const day = String(chinaDate.getUTCDate()).padStart(2, "0");
+
+  return `${year}-${month}-${day}`;
+}
+
+export function isDailyCompletedToday(task: Pick<TaskLike, "dailyCompletedOn">, now = new Date()) {
+  return task.dailyCompletedOn === getChinaDateKey(now);
 }
 
 function parseChinaDateTimeInput(value: unknown) {

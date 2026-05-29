@@ -5,7 +5,7 @@ import { redirect } from "next/navigation";
 
 import type { TaskFormState } from "./form-state";
 import { parseCreateTaskForm, parseUpdateTaskForm } from "./form-state";
-import { createTask, deleteTask, updateTask } from "./service";
+import { completeDailyTaskToday, createTask, deleteTask, setTaskPlannedToday, updateTask } from "./service";
 
 export async function createTaskAction(_prevState: TaskFormState, formData: FormData) {
   const parsed = parseCreateTaskForm(formData);
@@ -52,4 +52,29 @@ export async function deleteTaskAction(formData: FormData) {
   await deleteTask(id);
   revalidatePath("/");
   redirect("/?notice=deleted");
+}
+
+export async function togglePlannedTodayAction(formData: FormData) {
+  const id = String(formData.get("id") ?? "");
+  const isPlannedToday = formData.get("isPlannedToday") === "true";
+
+  if (!id) {
+    return;
+  }
+
+  await setTaskPlannedToday(id, isPlannedToday);
+  revalidatePath("/");
+  redirect(isPlannedToday ? "/?notice=plannedToday" : "/?notice=removedToday");
+}
+
+export async function completeDailyTodayAction(formData: FormData) {
+  const id = String(formData.get("id") ?? "");
+
+  if (!id) {
+    return;
+  }
+
+  await completeDailyTaskToday(id);
+  revalidatePath("/");
+  redirect("/?notice=dailyCompleted");
 }

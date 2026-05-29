@@ -1,6 +1,8 @@
-# 大学生 AI 任务管家
+# 砚时
 
-本项目是本地优先的大学生任务中枢，用于管理课程作业、成图任务、考试复习、学校活动、团支书任务和生活杂事。
+砚时：于书砚之间，理清每日之事。
+
+本项目是本地优先的大学生任务中枢，用于管理课程作业、成图任务、考试复习、学校活动、团支书任务、竞赛任务和生活杂事。
 
 ## 本地开发
 
@@ -29,7 +31,7 @@ corepack pnpm log:today
 中文目录名下建议显式指定 Compose 项目名：
 
 ```bash
-docker compose -p ai-task-butler up --build
+docker compose -p yanshi up --build
 ```
 
 ## 文档

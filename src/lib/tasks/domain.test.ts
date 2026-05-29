@@ -7,7 +7,10 @@ import {
   buildTaskSummary,
   createTaskInputSchema,
   formatChinaDateTime,
+  formatDueDistance,
+  getChinaDateKey,
   getSystemPriority,
+  isDailyCompletedToday,
   matchesTaskFilters,
   toChinaDateTimeInput,
   toTaskStatus,
@@ -24,6 +27,9 @@ const baseTask = {
   status: TASK_STATUSES[0],
   notes: "完成平面图",
   isLongRunning: false,
+  isPlannedToday: false,
+  isDaily: false,
+  dailyCompletedOn: null,
   nextAction: "",
   createdAt: new Date("2026-05-29T00:00:00.000Z"),
   updatedAt: new Date("2026-05-29T00:00:00.000Z"),
@@ -48,6 +54,8 @@ describe("task domain", () => {
       dueAt: new Date("2026-05-30T00:00:00.000Z"),
       notes: "先画轴网",
       isLongRunning: true,
+      isPlannedToday: false,
+      isDaily: false,
       nextAction: "先完成底图",
     });
     expect(formatChinaDateTime(parsed.dueAt)).toBe("2026年5月30日 08:00");
@@ -65,6 +73,22 @@ describe("task domain", () => {
 
     expect(parsed.dueAt).toBeNull();
     expect(getSystemPriority(parsed, now).value).toBe("low");
+  });
+
+  it("supports competition tasks and planning flags in task input", () => {
+    const parsed = createTaskInputSchema.parse({
+      title: "提交竞赛报名材料",
+      type: "competition",
+      source: "创新创业比赛",
+      dueAt: "2026-05-30T18:00",
+      notes: "",
+      isPlannedToday: "on",
+      isDaily: "on",
+    });
+
+    expect(parsed.type).toBe("competition");
+    expect(parsed.isPlannedToday).toBe(true);
+    expect(parsed.isDaily).toBe(true);
   });
 
   it("rejects an empty title", () => {
@@ -117,14 +141,18 @@ describe("task domain", () => {
       { ...baseTask, id: "overdue", dueAt: new Date("2026-05-28T12:00:00.000Z") },
       { ...baseTask, id: "today", dueAt: new Date("2026-05-29T15:00:00.000Z") },
       { ...baseTask, id: "long-running", isLongRunning: true },
+      { ...baseTask, id: "planned", isPlannedToday: true },
+      { ...baseTask, id: "daily", isDaily: true },
       { ...baseTask, id: "done", status: "done" },
     ], now);
 
     expect(summary).toEqual({
-      total: 4,
+      total: 6,
       overdue: 1,
       today: 1,
       longRunning: 1,
+      plannedToday: 1,
+      daily: 1,
       done: 1,
     });
   });
@@ -134,12 +162,41 @@ describe("task domain", () => {
       { ...baseTask, id: "other", dueAt: new Date("2026-06-04T02:00:00.000Z") },
       { ...baseTask, id: "done", status: "done" },
       { ...baseTask, id: "long", isLongRunning: true },
+      { ...baseTask, id: "planned", isPlannedToday: true },
+      { ...baseTask, id: "daily", isDaily: true },
       { ...baseTask, id: "today", dueAt: new Date("2026-05-29T15:00:00.000Z") },
     ], now);
 
     expect(sections.todayMustDo.map((task) => task.id)).toEqual(["today"]);
+    expect(sections.plannedToday.map((task) => task.id)).toEqual(["planned"]);
+    expect(sections.daily.map((task) => task.id)).toEqual(["daily"]);
     expect(sections.longRunning.map((task) => task.id)).toEqual(["long"]);
     expect(sections.other.map((task) => task.id)).toEqual(["other"]);
     expect(sections.done.map((task) => task.id)).toEqual(["done"]);
+  });
+
+  it("keeps daily tasks out of ordinary done section and resets completion by China day", () => {
+    const dailyTask = {
+      ...baseTask,
+      id: "daily",
+      isDaily: true,
+      dailyCompletedOn: "2026-05-29",
+    };
+
+    const sections = buildTaskSections([{ ...dailyTask, status: "done" }], now);
+
+    expect(sections.daily.map((task) => task.id)).toEqual(["daily"]);
+    expect(sections.done).toHaveLength(0);
+    expect(getChinaDateKey(now)).toBe("2026-05-29");
+    expect(isDailyCompletedToday(dailyTask, now)).toBe(true);
+    expect(isDailyCompletedToday(dailyTask, new Date("2026-05-29T16:30:00.000Z"))).toBe(false);
+  });
+
+  it("formats due distance by China day", () => {
+    expect(formatDueDistance(null, now)).toBe("无截止时间");
+    expect(formatDueDistance(new Date("2026-05-28T12:00:00.000Z"), now)).toBe("已逾期 1 天");
+    expect(formatDueDistance(new Date("2026-05-29T15:00:00.000Z"), now)).toBe("今天截止");
+    expect(formatDueDistance(new Date("2026-05-30T02:00:00.000Z"), now)).toBe("明天截止");
+    expect(formatDueDistance(new Date("2026-06-02T02:00:00.000Z"), now)).toBe("还有 4 天");
   });
 });

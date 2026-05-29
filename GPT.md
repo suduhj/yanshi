@@ -2,7 +2,7 @@
 
 ## 项目
 
-大学生 AI 任务管家，本地优先的 Next.js Web App。
+砚时，本地优先的 Next.js Web App。寓意：于书砚之间，理清每日之事。
 
 ## 标准文件
 
@@ -20,8 +20,10 @@
 - 如果开发需求、技术规范、设计规范或执行步骤有变化，更新 `docs` 下对应文件。
 - 如果新增标准文件、路径或协作规则，更新本文件。
 - DeepSeek 和 Agent 能力先通过清晰模块边界预留，后续按里程碑接入。
-- 中文目录下执行 Docker Compose 时使用 `docker compose -p ai-task-butler ...`。
+- 中文目录下执行 Docker Compose 时使用 `docker compose -p yanshi ...`。
 - 任务截止时间统一按中国时间处理；新增、编辑、展示、筛选、排序都必须使用同一套时间工具函数。
+- “今日必须完成”由截止时间自动判断，“今日要做”由用户手动加入，不能混为一类。
+- 每日任务通过 `dailyCompletedOn` 记录当天完成情况，不要把它混入普通已完成任务。
 - `build` 脚本使用 `next build --webpack`，用于规避当前 Windows + Turbopack 文件锁问题。
 
 ## Git 操作边界

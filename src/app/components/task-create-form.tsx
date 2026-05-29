@@ -64,6 +64,26 @@ export function TaskCreateForm() {
         <span>这是大跨度任务 / 需要持续推进</span>
       </label>
 
+      <label className="flex items-start gap-2 border border-neutral-200 bg-neutral-50 p-3 text-sm text-neutral-700">
+        <input
+          className="mt-1"
+          defaultChecked={state.values.isPlannedToday === "on"}
+          name="isPlannedToday"
+          type="checkbox"
+        />
+        <span>加入今日计划</span>
+      </label>
+
+      <label className="flex items-start gap-2 border border-neutral-200 bg-neutral-50 p-3 text-sm text-neutral-700">
+        <input
+          className="mt-1"
+          defaultChecked={state.values.isDaily === "on"}
+          name="isDaily"
+          type="checkbox"
+        />
+        <span>这是每日任务</span>
+      </label>
+
       <label className="grid gap-1 text-sm">
         <span className="text-neutral-600">下一步动作</span>
         <input

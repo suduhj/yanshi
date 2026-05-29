@@ -5,6 +5,7 @@ import {
   TASK_STATUSES,
   TASK_TYPES,
   compareTasks,
+  getChinaDateKey,
   getSystemPriority,
   type CreateTaskInput,
   type SystemPriority,
@@ -59,6 +60,20 @@ export async function updateTask(id: string, input: UpdateTaskInput) {
 export async function deleteTask(id: string) {
   return prisma.task.delete({
     where: { id },
+  });
+}
+
+export async function setTaskPlannedToday(id: string, isPlannedToday: boolean) {
+  return prisma.task.update({
+    where: { id },
+    data: { isPlannedToday },
+  });
+}
+
+export async function completeDailyTaskToday(id: string) {
+  return prisma.task.update({
+    where: { id },
+    data: { dailyCompletedOn: getChinaDateKey() },
   });
 }
 

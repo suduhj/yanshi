@@ -32,7 +32,9 @@ export default async function EditTaskPage({ params }: PageProps) {
         task={{
           dueAtInput: toChinaDateTimeInput(task.dueAt),
           id: task.id,
+          isDaily: task.isDaily,
           isLongRunning: task.isLongRunning,
+          isPlannedToday: task.isPlannedToday,
           nextAction: task.nextAction,
           notes: task.notes,
           source: task.source,
