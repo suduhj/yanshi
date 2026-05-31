@@ -60,7 +60,30 @@ describe("createDeepSeekCompletion", () => {
     });
   });
 
-  it("returns a readable error when DeepSeek responds with a non-2xx status", async () => {
+  it("can send a plain text chat completion request", async () => {
+    process.env.DEEPSEEK_API_KEY = "test-key";
+    const fetchMock = vi.fn().mockResolvedValue({
+      json: vi.fn().mockResolvedValue({
+        choices: [{ message: { content: "今天完成了复习。" } }],
+      }),
+      ok: true,
+      status: 200,
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    const result = await createDeepSeekCompletion({
+      messages: [{ content: "请生成今日回顾", role: "user" }],
+      responseFormat: "text",
+    });
+
+    expect(result).toEqual({
+      content: "今天完成了复习。",
+      ok: true,
+    });
+    expect(JSON.parse(fetchMock.mock.calls[0][1].body)).not.toHaveProperty("response_format");
+  });
+
+  it("returns a concise error when DeepSeek responds with a non-2xx status", async () => {
     process.env.DEEPSEEK_API_KEY = "test-key";
     const fetchMock = vi.fn().mockResolvedValue({
       ok: false,
@@ -75,7 +98,7 @@ describe("createDeepSeekCompletion", () => {
 
     expect(result).toEqual({
       ok: false,
-      reason: "DeepSeek 请求失败：429 rate limited",
+      reason: "DeepSeek 请求失败：429，请稍后重试或检查配置",
     });
   });
 });

@@ -28,6 +28,7 @@ model Task {
   nextAction String   @default("")
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+  events TaskEvent[]
 
   @@index([status])
   @@index([type])
@@ -35,4 +36,19 @@ model Task {
   @@index([dueAt])
   @@index([isPlannedToday])
   @@index([isDaily])
+}
+
+model TaskEvent {
+  id           String   @id @default(cuid())
+  taskId       String?
+  task         Task?    @relation(fields: [taskId], references: [id], onDelete: SetNull)
+  taskTitle    String
+  type         String
+  summary      String
+  metadata     String?
+  chinaDateKey String
+  createdAt    DateTime @default(now())
+
+  @@index([taskId, createdAt])
+  @@index([chinaDateKey, createdAt])
 }

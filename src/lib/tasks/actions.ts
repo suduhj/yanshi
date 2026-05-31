@@ -5,8 +5,10 @@ import { redirect } from "next/navigation";
 
 import { parseTaskDraftFromText } from "./ai-draft";
 import { createTaskInputSchema } from "./domain";
+import { createTaskEvent } from "./events";
 import type { TaskFormState } from "./form-state";
 import { parseCreateTaskForm, parseUpdateTaskForm, taskFormValuesFromFormData } from "./form-state";
+import { prisma } from "../prisma";
 import {
   completeDailyTaskToday,
   completeLongRunningProgressToday,
@@ -82,12 +84,21 @@ export async function deleteTaskAction(formData: FormData) {
 
 export async function completeTaskAction(formData: FormData) {
   const id = String(formData.get("id") ?? "");
+  const eventType = formData.get("eventType") === "morning_confirmed_done" ? "morning_confirmed_done" : "task_completed";
 
   if (!id) {
     return;
   }
 
-  await completeTask(id);
+  await prisma.$transaction(async (tx) => {
+    const task = await completeTask(id, tx);
+    await createTaskEvent({
+      summary: eventType === "morning_confirmed_done" ? `晨间确认完成：${task.title}` : `完成任务：${task.title}`,
+      taskId: task.id,
+      taskTitle: task.title,
+      type: eventType,
+    }, tx);
+  });
   revalidatePath("/");
   redirect("/?notice=completed");
 }
@@ -112,7 +123,15 @@ export async function markUnfinishedPlannedTodayAction(formData: FormData) {
     return;
   }
 
-  await setTaskPlannedToday(id, true);
+  await prisma.$transaction(async (tx) => {
+    const task = await setTaskPlannedToday(id, true, tx);
+    await createTaskEvent({
+      summary: `未完成，加入今日：${task.title}`,
+      taskId: task.id,
+      taskTitle: task.title,
+      type: "marked_unfinished_today",
+    }, tx);
+  });
   revalidatePath("/");
   redirect("/?notice=plannedToday");
 }
@@ -131,7 +150,16 @@ export async function postponeTaskDueAtAction(formData: FormData) {
     redirect("/?notice=invalidDueAt");
   }
 
-  await postponeTaskDueAt(id, parsed.data.dueAt);
+  await prisma.$transaction(async (tx) => {
+    const task = await postponeTaskDueAt(id, parsed.data.dueAt, tx);
+    await createTaskEvent({
+      metadata: { dueAt: task.dueAt?.toISOString() ?? null },
+      summary: `推迟截止时间：${task.title}`,
+      taskId: task.id,
+      taskTitle: task.title,
+      type: "due_postponed",
+    }, tx);
+  });
   revalidatePath("/");
   redirect("/?notice=postponed");
 }
@@ -144,7 +172,16 @@ export async function updateTaskNextActionAction(formData: FormData) {
     return;
   }
 
-  await updateTaskNextAction(id, nextAction);
+  await prisma.$transaction(async (tx) => {
+    const task = await updateTaskNextAction(id, nextAction, tx);
+    await createTaskEvent({
+      metadata: { nextAction: task.nextAction },
+      summary: `更新下一步：${task.nextAction || "未填写"}`,
+      taskId: task.id,
+      taskTitle: task.title,
+      type: "next_action_updated",
+    }, tx);
+  });
   revalidatePath("/");
   redirect("/?notice=nextActionUpdated");
 }
@@ -156,7 +193,15 @@ export async function completeLongRunningProgressTodayAction(formData: FormData)
     return;
   }
 
-  await completeLongRunningProgressToday(id);
+  await prisma.$transaction(async (tx) => {
+    const task = await completeLongRunningProgressToday(id, tx);
+    await createTaskEvent({
+      summary: `今日推进：${task.title}`,
+      taskId: task.id,
+      taskTitle: task.title,
+      type: "progress_completed",
+    }, tx);
+  });
   revalidatePath("/");
   redirect("/?notice=progressCompleted");
 }
@@ -168,7 +213,15 @@ export async function completeDailyTodayAction(formData: FormData) {
     return;
   }
 
-  await completeDailyTaskToday(id);
+  await prisma.$transaction(async (tx) => {
+    const task = await completeDailyTaskToday(id, tx);
+    await createTaskEvent({
+      summary: `完成今日：${task.title}`,
+      taskId: task.id,
+      taskTitle: task.title,
+      type: "daily_completed",
+    }, tx);
+  });
   revalidatePath("/");
   redirect("/?notice=dailyCompleted");
 }

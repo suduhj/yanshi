@@ -1,5 +1,6 @@
 import Link from "next/link";
 
+import { DailyRecapActionPanel } from "@/app/components/daily-recap-action-panel";
 import { ReminderNotificationControls } from "@/app/components/reminder-notification-controls";
 import { TaskFocusHighlighter } from "@/app/components/task-focus-highlighter";
 import { TaskCreateForm } from "@/app/components/task-create-form";
@@ -35,6 +36,8 @@ import {
   type TaskStatus,
   type TaskType,
 } from "@/lib/tasks/domain";
+import { listTodayTaskEvents, summarizeTaskEventsByType } from "@/lib/tasks/events";
+import { buildLocalDailyRecap } from "@/lib/tasks/recap";
 import { listTasks, type TaskView } from "@/lib/tasks/service";
 
 type PageProps = {
@@ -51,6 +54,7 @@ export default async function Home({ searchParams }: PageProps) {
   const summary = buildTaskSummary(tasks, now);
   const sections = buildTaskSections(tasks, now);
   const reminderCheck = await runReminderCheck(tasks, now);
+  const todayEvents = await listTodayTaskEvents(now);
   const notice = getNotice(params.notice);
   const visibleSections = getVisibleSections(sections, view);
 
@@ -66,7 +70,7 @@ export default async function Home({ searchParams }: PageProps) {
         <div className="grid grid-cols-2 gap-2 text-center text-sm sm:grid-cols-4 xl:w-[920px] xl:grid-cols-8">
           <SummaryItem active={view === "all"} href="/?view=all#task-list" label="全部任务" value={summary.total} />
           <SummaryItem active={view === "needsConfirmation"} href="/?view=needsConfirmation#task-list" label="待确认" value={summary.needsConfirmation} tone="focus" />
-          <SummaryItem active={view === "todayMustDo"} href="/?view=todayMustDo#task-list" label="今天截止" value={summary.today} tone="focus" />
+          <SummaryItem active={view === "todayMustDo"} href="/?view=todayMustDo#task-list" label="今日必须完成" value={summary.today} tone="focus" />
           <SummaryItem active={view === "plannedToday"} href="/?view=plannedToday#task-list" label="今日要做" value={summary.plannedToday} />
           <SummaryItem active={view === "daily"} href="/?view=daily#task-list" label="每日任务" value={summary.daily} />
           <SummaryItem active={view === "longRunning"} href="/?view=longRunning#task-list" label="持续推进" value={summary.longRunning} />
@@ -82,6 +86,7 @@ export default async function Home({ searchParams }: PageProps) {
       ) : null}
 
       <ReminderPanel chinaDateKey={getChinaDateKey(now)} reminders={reminderCheck.reminders} />
+      <DailyRecapPanel events={todayEvents} />
       <MorningReviewPanel tasks={sections.needsConfirmation} />
 
       <section className="grid gap-6 lg:grid-cols-[360px_1fr]">
@@ -128,6 +133,41 @@ export default async function Home({ searchParams }: PageProps) {
         </section>
       </section>
     </main>
+  );
+}
+
+function DailyRecapPanel({
+  events,
+}: {
+  events: Array<{
+    summary: string;
+    taskTitle: string;
+    type: string;
+  }>;
+}) {
+  const grouped = summarizeTaskEventsByType(events);
+  const localRecap = buildLocalDailyRecap(events);
+
+  return (
+    <section className="border border-neutral-200 bg-white" id="daily-recap">
+      <header className="border-b border-neutral-200 px-4 py-3">
+        <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <p className="text-sm text-neutral-500">今日小结</p>
+            <h2 className="mt-1 text-base font-semibold text-neutral-950">复盘今天留下的任务记录</h2>
+          </div>
+          <div className="flex flex-wrap gap-2 text-xs text-neutral-500">
+            <span className="tag">完成 {grouped.completed.length}</span>
+            <span className="tag">推进 {grouped.progressCompleted.length}</span>
+            <span className="tag">调整 {grouped.rescheduled.length}</span>
+          </div>
+        </div>
+      </header>
+      <div className="grid gap-3 px-4 py-3 md:grid-cols-[1fr_auto]">
+        <p className="whitespace-pre-wrap text-sm leading-6 text-neutral-700">{localRecap}</p>
+        <DailyRecapActionPanel />
+      </div>
+    </section>
   );
 }
 
@@ -188,7 +228,7 @@ function MorningReviewPanel({ tasks }: { tasks: TaskView[] }) {
               <p className="mt-1 text-sm text-amber-800">截止 {formatChinaDateTime(task.dueAt)}</p>
             </div>
             <div className="flex flex-wrap gap-2 md:justify-end">
-              <CompleteTaskButton taskId={task.id} />
+              <MorningCompleteTaskButton taskId={task.id} />
               <MarkUnfinishedTodayButton taskId={task.id} />
               <PostponeDueAtForm taskId={task.id} />
               <NextActionForm label="拆成下一步" taskId={task.id} />
@@ -316,6 +356,18 @@ function CompleteTaskButton({ label = "完成", taskId }: { label?: string; task
   );
 }
 
+function MorningCompleteTaskButton({ taskId }: { taskId: string }) {
+  return (
+    <form action={completeTaskAction}>
+      <input name="id" type="hidden" value={taskId} />
+      <input name="eventType" type="hidden" value="morning_confirmed_done" />
+      <button className="h-9 border border-neutral-950 bg-neutral-950 px-3 text-sm font-medium text-white transition hover:bg-neutral-800">
+        完成
+      </button>
+    </form>
+  );
+}
+
 function MarkUnfinishedTodayButton({ taskId }: { taskId: string }) {
   return (
     <form action={markUnfinishedPlannedTodayAction}>
@@ -346,6 +398,7 @@ function PostponeDueAtForm({ taskId }: { taskId: string }) {
         aria-label="推迟截止时间"
         className="w-[150px] px-2 text-xs outline-none"
         name="dueAt"
+        required
         type="datetime-local"
       />
       <button className="border-l border-neutral-300 px-2 text-sm text-neutral-950 transition hover:bg-neutral-50">
@@ -365,6 +418,7 @@ function NextActionForm({ label = "更新下一步", taskId }: { label?: string;
         maxLength={240}
         name="nextAction"
         placeholder="下一步"
+        required
       />
       <button className="border-l border-neutral-300 px-2 text-sm text-neutral-950 transition hover:bg-neutral-50">
         {label}
