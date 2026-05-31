@@ -16,6 +16,8 @@ import {
   matchesTaskFilters,
 } from "./domain";
 
+type TaskClient = Pick<typeof prisma, "task">;
+
 export type TaskView = Omit<Task, "type" | "priority" | "status"> & {
   status: TaskStatus;
   systemPriority: {
@@ -57,8 +59,8 @@ export async function updateTask(id: string, input: UpdateTaskInput) {
   });
 }
 
-export async function completeTask(id: string) {
-  return prisma.task.update({
+export async function completeTask(id: string, db: TaskClient = prisma) {
+  return db.task.update({
     where: { id },
     data: { status: "done" },
   });
@@ -70,36 +72,36 @@ export async function deleteTask(id: string) {
   });
 }
 
-export async function setTaskPlannedToday(id: string, isPlannedToday: boolean) {
-  return prisma.task.update({
+export async function setTaskPlannedToday(id: string, isPlannedToday: boolean, db: TaskClient = prisma) {
+  return db.task.update({
     where: { id },
     data: { isPlannedToday },
   });
 }
 
-export async function postponeTaskDueAt(id: string, dueAt: Date | null) {
-  return prisma.task.update({
+export async function postponeTaskDueAt(id: string, dueAt: Date | null, db: TaskClient = prisma) {
+  return db.task.update({
     where: { id },
     data: { dueAt, isPlannedToday: false },
   });
 }
 
-export async function updateTaskNextAction(id: string, nextAction: string) {
-  return prisma.task.update({
+export async function updateTaskNextAction(id: string, nextAction: string, db: TaskClient = prisma) {
+  return db.task.update({
     where: { id },
     data: { nextAction: nextAction.trim() },
   });
 }
 
-export async function completeLongRunningProgressToday(id: string) {
-  return prisma.task.update({
+export async function completeLongRunningProgressToday(id: string, db: TaskClient = prisma) {
+  return db.task.update({
     where: { id },
     data: { isPlannedToday: false, status: "doing" },
   });
 }
 
-export async function completeDailyTaskToday(id: string) {
-  return prisma.task.update({
+export async function completeDailyTaskToday(id: string, db: TaskClient = prisma) {
+  return db.task.update({
     where: { id },
     data: { dailyCompletedOn: getChinaDateKey() },
   });

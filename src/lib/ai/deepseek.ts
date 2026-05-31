@@ -6,6 +6,7 @@ export type DeepSeekMessage = {
 export type DeepSeekCompletionRequest = {
   messages: DeepSeekMessage[];
   model?: string;
+  responseFormat?: "json" | "text";
 };
 
 export type DeepSeekCompletionResult =
@@ -36,15 +37,19 @@ export async function createDeepSeekCompletion(request: DeepSeekCompletionReques
 
   const baseUrl = process.env.DEEPSEEK_BASE_URL || "https://api.deepseek.com";
   const model = request.model || process.env.DEEPSEEK_MODEL || "deepseek-v4-flash";
+  const body: Record<string, unknown> = {
+    messages: request.messages,
+    model,
+    temperature: 0.2,
+  };
+
+  if (request.responseFormat !== "text") {
+    body.response_format = { type: "json_object" };
+  }
 
   try {
     const response = await fetch(`${baseUrl.replace(/\/$/, "")}/chat/completions`, {
-      body: JSON.stringify({
-        messages: request.messages,
-        model,
-        response_format: { type: "json_object" },
-        temperature: 0.2,
-      }),
+      body: JSON.stringify(body),
       headers: {
         Authorization: `Bearer ${process.env.DEEPSEEK_API_KEY}`,
         "Content-Type": "application/json",
