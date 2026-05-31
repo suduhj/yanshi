@@ -17,5 +17,5 @@ WORKDIR /app
 ENV NODE_ENV=production
 RUN corepack enable pnpm
 COPY --from=builder /app ./
-EXPOSE 3000
+EXPOSE 3100
 CMD ["sh", "-c", "pnpm prisma migrate deploy && pnpm start"]

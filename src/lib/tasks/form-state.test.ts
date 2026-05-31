@@ -64,4 +64,23 @@ describe("task form state", () => {
       expect(result.state.values.dueAt).toBe("2026-05-30T08:00");
     }
   });
+
+  it("keeps AI input values separate from task field values", () => {
+    const result = parseCreateTaskForm(
+      makeFormData({
+        aiInput: "明天晚上八点交成图作业",
+        intent: "create",
+        title: " ",
+        type: "coursework",
+        dueAt: "",
+      }),
+    );
+
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.state.aiInput).toBe("明天晚上八点交成图作业");
+      expect(result.state.values.aiInput).toBeUndefined();
+      expect(result.state.values.intent).toBeUndefined();
+    }
+  });
 });

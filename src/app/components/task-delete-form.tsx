@@ -13,7 +13,7 @@ export function TaskDeleteForm({ taskId, taskTitle }: { taskId: string; taskTitl
       }}
     >
       <input name="id" type="hidden" value={taskId} />
-      <button className="h-9 border border-red-200 px-3 text-sm text-red-700 transition hover:border-red-600">
+      <button className="h-9 border border-neutral-200 px-3 text-sm text-neutral-500 transition hover:border-red-300 hover:text-red-700">
         删除
       </button>
     </form>

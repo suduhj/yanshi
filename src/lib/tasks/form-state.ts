@@ -4,6 +4,8 @@ import { createTaskInputSchema, updateTaskInputSchema } from "./domain";
 export type TaskFormValues = Record<string, string>;
 
 export type TaskFormState = {
+  aiInput?: string;
+  aiMessage?: string;
   errors: Record<string, string[]>;
   message: string;
   status: "idle" | "error";
@@ -37,6 +39,7 @@ export function parseUpdateTaskForm(formData: FormData): ParsedTaskForm<UpdateTa
 
 function parseTaskForm<T>(formData: FormData, schema: { safeParse: (value: unknown) => { success: true; data: T } | { success: false; error: { flatten: () => { fieldErrors: Record<string, string[]> } } } }): ParsedTaskForm<T> {
   const values = formDataToValues(formData);
+  const aiInput = getStringValue(formData.get("aiInput"));
   const dateError = getDateTimeError(values.dueAt);
   const parsed = schema.safeParse(Object.fromEntries(formData.entries()));
 
@@ -57,6 +60,7 @@ function parseTaskForm<T>(formData: FormData, schema: { safeParse: (value: unkno
     ok: false,
     state: {
       errors,
+      aiInput,
       message: "请检查任务信息",
       status: "error",
       values,
@@ -64,16 +68,25 @@ function parseTaskForm<T>(formData: FormData, schema: { safeParse: (value: unkno
   };
 }
 
-function formDataToValues(formData: FormData): TaskFormValues {
+export function taskFormValuesFromFormData(formData: FormData): TaskFormValues {
   const values: TaskFormValues = {};
+  const ignoredFields = new Set(["aiInput", "intent"]);
 
   for (const [key, value] of formData.entries()) {
-    if (typeof value === "string") {
+    if (typeof value === "string" && !ignoredFields.has(key)) {
       values[key] = value;
     }
   }
 
   return values;
+}
+
+function formDataToValues(formData: FormData): TaskFormValues {
+  return taskFormValuesFromFormData(formData);
+}
+
+function getStringValue(value: FormDataEntryValue | null) {
+  return typeof value === "string" ? value : "";
 }
 
 function getDateTimeError(value: string | undefined) {

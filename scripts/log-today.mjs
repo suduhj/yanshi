@@ -1,11 +1,7 @@
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { existsSync } from "node:fs";
 import path from "node:path";
-
-const root = process.cwd();
-const logDir = path.join(root, "开发日志");
-const today = new Date().toISOString().slice(0, 10);
-const logPath = path.join(logDir, `${today}.md`);
+import { pathToFileURL } from "node:url";
 
 const sections = [
   "## 完成事项",
@@ -14,25 +10,45 @@ const sections = [
   "## 备注",
 ];
 
-await mkdir(logDir, { recursive: true });
+export function getChinaDateKey(date = new Date()) {
+  const chinaDate = new Date(date.getTime() + 8 * 60 * 60 * 1000);
+  const year = chinaDate.getUTCFullYear();
+  const month = String(chinaDate.getUTCMonth() + 1).padStart(2, "0");
+  const day = String(chinaDate.getUTCDate()).padStart(2, "0");
 
-if (!existsSync(logPath)) {
-  await writeFile(
-    logPath,
-    `# ${today} 开发日志\n\n${sections.map((section) => `${section}\n- `).join("\n\n")}\n`,
-    "utf8",
-  );
-  console.log(`created ${path.relative(root, logPath)}`);
-  process.exit(0);
+  return `${year}-${month}-${day}`;
 }
 
-let content = await readFile(logPath, "utf8");
+export async function ensureTodayLog(root = process.cwd(), now = new Date()) {
+  const logDir = path.join(root, "开发日志");
+  const today = getChinaDateKey(now);
+  const logPath = path.join(logDir, `${today}.md`);
 
-for (const section of sections) {
-  if (!content.includes(section)) {
-    content += `\n\n${section}\n- \n`;
+  await mkdir(logDir, { recursive: true });
+
+  if (!existsSync(logPath)) {
+    await writeFile(
+      logPath,
+      `# ${today} 开发日志\n\n${sections.map((section) => `${section}\n- `).join("\n\n")}\n`,
+      "utf8",
+    );
+    return { action: "created", logPath };
   }
+
+  let content = await readFile(logPath, "utf8");
+
+  for (const section of sections) {
+    if (!content.includes(section)) {
+      content += `\n\n${section}\n- \n`;
+    }
+  }
+
+  await writeFile(logPath, content, "utf8");
+  return { action: "updated", logPath };
 }
 
-await writeFile(logPath, content, "utf8");
-console.log(`updated ${path.relative(root, logPath)}`);
+if (import.meta.url === pathToFileURL(process.argv[1]).href) {
+  const root = process.cwd();
+  const result = await ensureTodayLog(root);
+  console.log(`${result.action} ${path.relative(root, result.logPath)}`);
+}

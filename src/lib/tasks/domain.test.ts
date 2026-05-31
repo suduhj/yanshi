@@ -12,6 +12,7 @@ import {
   getSystemPriority,
   isDailyCompletedToday,
   matchesTaskFilters,
+  toTaskViewFilter,
   toChinaDateTimeInput,
   toTaskStatus,
 } from "./domain";
@@ -143,16 +144,19 @@ describe("task domain", () => {
       { ...baseTask, id: "long-running", isLongRunning: true },
       { ...baseTask, id: "planned", isPlannedToday: true },
       { ...baseTask, id: "daily", isDaily: true },
+      { ...baseTask, id: "other", dueAt: new Date("2026-06-04T02:00:00.000Z") },
       { ...baseTask, id: "done", status: "done" },
     ], now);
 
     expect(summary).toEqual({
-      total: 6,
-      overdue: 1,
+      total: 7,
+      needsConfirmation: 1,
+      overdue: 0,
       today: 1,
       longRunning: 1,
       plannedToday: 1,
       daily: 1,
+      other: 1,
       done: 1,
     });
   });
@@ -173,6 +177,41 @@ describe("task domain", () => {
     expect(sections.longRunning.map((task) => task.id)).toEqual(["long"]);
     expect(sections.other.map((task) => task.id)).toEqual(["other"]);
     expect(sections.done.map((task) => task.id)).toEqual(["done"]);
+  });
+
+  it("puts overdue unfinished tasks into needs confirmation before treating them as today work", () => {
+    const sections = buildTaskSections([
+      { ...baseTask, id: "needs-confirmation", dueAt: new Date("2026-05-28T12:00:00.000Z") },
+      { ...baseTask, id: "confirmed-today", dueAt: new Date("2026-05-28T12:00:00.000Z"), isPlannedToday: true },
+      { ...baseTask, id: "daily", dueAt: new Date("2026-05-28T12:00:00.000Z"), isDaily: true },
+      { ...baseTask, id: "done", dueAt: new Date("2026-05-28T12:00:00.000Z"), status: "done" },
+    ], now);
+
+    expect(sections.needsConfirmation.map((task) => task.id)).toEqual(["needs-confirmation"]);
+    expect(sections.plannedToday.map((task) => task.id)).toEqual(["confirmed-today"]);
+    expect(sections.todayMustDo).toHaveLength(0);
+    expect(sections.daily.map((task) => task.id)).toEqual(["daily"]);
+    expect(sections.done.map((task) => task.id)).toEqual(["done"]);
+  });
+
+  it("summarizes needs confirmation separately from today due tasks", () => {
+    const summary = buildTaskSummary([
+      { ...baseTask, id: "needs-confirmation", dueAt: new Date("2026-05-28T12:00:00.000Z") },
+      { ...baseTask, id: "today", dueAt: new Date("2026-05-29T15:00:00.000Z") },
+      { ...baseTask, id: "confirmed-today", dueAt: new Date("2026-05-28T12:00:00.000Z"), isPlannedToday: true },
+    ], now);
+
+    expect(summary.needsConfirmation).toBe(1);
+    expect(summary.today).toBe(1);
+    expect(summary.plannedToday).toBe(1);
+  });
+
+  it("maps view query values to task section filters", () => {
+    expect(toTaskViewFilter("needsConfirmation")).toBe("needsConfirmation");
+    expect(toTaskViewFilter("daily")).toBe("daily");
+    expect(toTaskViewFilter("other")).toBe("other");
+    expect(toTaskViewFilter(["done"])).toBe("done");
+    expect(toTaskViewFilter("unknown")).toBe("all");
   });
 
   it("keeps daily tasks out of ordinary done section and resets completion by China day", () => {
