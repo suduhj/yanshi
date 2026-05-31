@@ -66,7 +66,7 @@ export default async function Home({ searchParams }: PageProps) {
         <div className="grid grid-cols-2 gap-2 text-center text-sm sm:grid-cols-4 xl:w-[920px] xl:grid-cols-8">
           <SummaryItem active={view === "all"} href="/?view=all#task-list" label="全部任务" value={summary.total} />
           <SummaryItem active={view === "needsConfirmation"} href="/?view=needsConfirmation#task-list" label="待确认" value={summary.needsConfirmation} tone="focus" />
-          <SummaryItem active={view === "todayMustDo"} href="/?view=todayMustDo#task-list" label="今天截止" value={summary.today} tone="focus" />
+          <SummaryItem active={view === "todayMustDo"} href="/?view=todayMustDo#task-list" label="今日必须完成" value={summary.today} tone="focus" />
           <SummaryItem active={view === "plannedToday"} href="/?view=plannedToday#task-list" label="今日要做" value={summary.plannedToday} />
           <SummaryItem active={view === "daily"} href="/?view=daily#task-list" label="每日任务" value={summary.daily} />
           <SummaryItem active={view === "longRunning"} href="/?view=longRunning#task-list" label="持续推进" value={summary.longRunning} />
@@ -346,6 +346,7 @@ function PostponeDueAtForm({ taskId }: { taskId: string }) {
         aria-label="推迟截止时间"
         className="w-[150px] px-2 text-xs outline-none"
         name="dueAt"
+        required
         type="datetime-local"
       />
       <button className="border-l border-neutral-300 px-2 text-sm text-neutral-950 transition hover:bg-neutral-50">
@@ -365,6 +366,7 @@ function NextActionForm({ label = "更新下一步", taskId }: { label?: string;
         maxLength={240}
         name="nextAction"
         placeholder="下一步"
+        required
       />
       <button className="border-l border-neutral-300 px-2 text-sm text-neutral-950 transition hover:bg-neutral-50">
         {label}

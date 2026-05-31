@@ -53,10 +53,9 @@ export async function createDeepSeekCompletion(request: DeepSeekCompletionReques
     });
 
     if (!response.ok) {
-      const body = await response.text();
       return {
         ok: false as const,
-        reason: `DeepSeek 请求失败：${response.status}${body ? ` ${body}` : ""}`,
+        reason: `DeepSeek 请求失败：${response.status}，请稍后重试或检查配置`,
       };
     }
 
