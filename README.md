@@ -14,7 +14,7 @@ corepack pnpm prisma migrate dev
 corepack pnpm dev
 ```
 
-默认访问 `http://localhost:3000`。如果端口被占用，Next.js 会自动切换到下一个可用端口。
+默认访问 `http://localhost:3100`。本项目固定使用 3100，避免占用其他本地项目的 3000 端口。
 
 ## 常用命令
 

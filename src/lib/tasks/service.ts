@@ -57,6 +57,13 @@ export async function updateTask(id: string, input: UpdateTaskInput) {
   });
 }
 
+export async function completeTask(id: string) {
+  return prisma.task.update({
+    where: { id },
+    data: { status: "done" },
+  });
+}
+
 export async function deleteTask(id: string) {
   return prisma.task.delete({
     where: { id },
@@ -67,6 +74,27 @@ export async function setTaskPlannedToday(id: string, isPlannedToday: boolean) {
   return prisma.task.update({
     where: { id },
     data: { isPlannedToday },
+  });
+}
+
+export async function postponeTaskDueAt(id: string, dueAt: Date | null) {
+  return prisma.task.update({
+    where: { id },
+    data: { dueAt, isPlannedToday: false },
+  });
+}
+
+export async function updateTaskNextAction(id: string, nextAction: string) {
+  return prisma.task.update({
+    where: { id },
+    data: { nextAction: nextAction.trim() },
+  });
+}
+
+export async function completeLongRunningProgressToday(id: string) {
+  return prisma.task.update({
+    where: { id },
+    data: { isPlannedToday: false, status: "doing" },
   });
 }
 

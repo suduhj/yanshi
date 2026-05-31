@@ -63,6 +63,18 @@ export type TaskType = (typeof TASK_TYPES)[number];
 export type SystemPriority = (typeof SYSTEM_PRIORITIES)[number];
 export type TaskStatus = (typeof TASK_STATUSES)[number];
 export type DueFilter = (typeof DUE_FILTERS)[number];
+export const TASK_VIEW_FILTERS = [
+  "all",
+  "needsConfirmation",
+  "todayMustDo",
+  "plannedToday",
+  "daily",
+  "longRunning",
+  "other",
+  "done",
+] as const;
+
+export type TaskViewFilter = (typeof TASK_VIEW_FILTERS)[number];
 
 export type TaskFilters = {
   due?: DueFilter;
@@ -124,6 +136,10 @@ export function toTaskFilters(searchParams: {
   };
 }
 
+export function toTaskViewFilter(value: string | string[] | undefined): TaskViewFilter {
+  return pickAllowed(value, TASK_VIEW_FILTERS, "all") as TaskViewFilter;
+}
+
 export function matchesTaskFilters(task: TaskLike, filters: TaskFilters, now = new Date()) {
   if (filters.status && filters.status !== "all" && task.status !== filters.status) {
     return false;
@@ -164,16 +180,22 @@ export function buildTaskSummary(tasks: TaskLike[], now = new Date()) {
       }
 
       const bucket = getDueBucket(task.dueAt, now);
-      if (bucket === "overdue") {
+      if (isNeedsConfirmation(task, now)) {
+        summary.needsConfirmation += 1;
+      } else if (bucket === "overdue") {
         summary.overdue += 1;
       }
       if (bucket === "today") {
         summary.today += 1;
       }
 
+      if (isOtherTask(task, now)) {
+        summary.other += 1;
+      }
+
       return summary;
     },
-    { total: 0, overdue: 0, today: 0, longRunning: 0, plannedToday: 0, daily: 0, done: 0 },
+    { total: 0, needsConfirmation: 0, overdue: 0, today: 0, longRunning: 0, plannedToday: 0, daily: 0, other: 0, done: 0 },
   );
 }
 
@@ -181,20 +203,39 @@ export function buildTaskSections<T extends TaskLike>(tasks: T[], now = new Date
   const sorted = [...tasks].sort((a, b) => compareTasks(a, b, now));
   const isTodayMustDo = (task: T) => {
     const bucket = getDueBucket(task.dueAt, now);
-    return !task.isDaily && task.status !== "done" && !task.isLongRunning && (bucket === "overdue" || bucket === "today");
+    return !task.isDaily && task.status !== "done" && !task.isLongRunning && bucket === "today";
   };
 
   return {
+    needsConfirmation: sorted.filter((task) => isNeedsConfirmation(task, now)),
     todayMustDo: sorted.filter(isTodayMustDo),
     plannedToday: sorted.filter((task) => task.isPlannedToday && !task.isDaily && task.status !== "done" && !isTodayMustDo(task)),
     daily: sorted.filter((task) => task.isDaily),
     longRunning: sorted.filter((task) => task.status !== "done" && !task.isDaily && !task.isPlannedToday && task.isLongRunning),
-    other: sorted.filter((task) => {
-      const bucket = getDueBucket(task.dueAt, now);
-      return task.status !== "done" && !task.isDaily && !task.isPlannedToday && !task.isLongRunning && bucket !== "overdue" && bucket !== "today";
-    }),
+    other: sorted.filter((task) => isOtherTask(task, now)),
     done: sorted.filter((task) => task.status === "done" && !task.isDaily),
   };
+}
+
+export function isNeedsConfirmation(task: TaskLike, now = new Date()) {
+  return (
+    task.status !== "done" &&
+    !task.isDaily &&
+    !task.isPlannedToday &&
+    getDueBucket(task.dueAt, now) === "overdue"
+  );
+}
+
+function isOtherTask(task: TaskLike, now = new Date()) {
+  const bucket = getDueBucket(task.dueAt, now);
+  return (
+    task.status !== "done" &&
+    !task.isDaily &&
+    !task.isPlannedToday &&
+    !task.isLongRunning &&
+    bucket !== "overdue" &&
+    bucket !== "today"
+  );
 }
 
 export function compareTasks(a: TaskLike, b: TaskLike, now = new Date()) {

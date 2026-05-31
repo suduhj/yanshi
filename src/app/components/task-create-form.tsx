@@ -9,10 +9,34 @@ import { TASK_TYPE_LABELS, TASK_TYPES } from "@/lib/tasks/domain";
 
 export function TaskCreateForm() {
   const [state, formAction] = useActionState(createTaskAction, initialTaskFormState);
+  const formKey = JSON.stringify({
+    aiInput: state.aiInput,
+    aiMessage: state.aiMessage,
+    values: state.values,
+  });
 
   return (
-    <form action={formAction} className="mt-4 grid gap-3">
+    <form action={formAction} className="mt-4 grid gap-3" key={formKey}>
       <FormMessage message={state.message} />
+
+      <label className="grid gap-1 text-sm">
+        <span className="text-neutral-600">自然语言描述</span>
+        <textarea
+          className="field min-h-20 resize-y"
+          defaultValue={state.aiInput}
+          name="aiInput"
+          placeholder="例如：明天晚上八点交成图作业，加入今日计划"
+        />
+      </label>
+      <AiMessage message={state.aiMessage} status={state.status} />
+      <button
+        className="h-9 border border-neutral-300 px-3 text-sm text-neutral-950 transition hover:border-neutral-950 disabled:cursor-not-allowed disabled:bg-neutral-100 disabled:text-neutral-400"
+        name="intent"
+        type="submit"
+        value="parseDraft"
+      >
+        解析填入
+      </button>
 
       <label className="grid gap-1 text-sm">
         <span className="text-neutral-600">标题</span>
@@ -131,6 +155,19 @@ function FieldError({ messages }: { messages?: string[] }) {
   return <p className="text-xs text-red-700">{messages[0]}</p>;
 }
 
+function AiMessage({ message, status }: { message?: string; status: "error" | "idle" }) {
+  if (!message) {
+    return null;
+  }
+
+  const className =
+    status === "error"
+      ? "border-red-200 bg-red-50 text-red-700"
+      : "border-emerald-200 bg-emerald-50 text-emerald-800";
+
+  return <div className={`border px-3 py-2 text-sm ${className}`}>{message}</div>;
+}
+
 function SubmitButton({ label, pendingLabel }: { label: string; pendingLabel: string }) {
   const { pending } = useFormStatus();
 
@@ -138,6 +175,9 @@ function SubmitButton({ label, pendingLabel }: { label: string; pendingLabel: st
     <button
       className="mt-1 h-10 border border-neutral-950 bg-neutral-950 px-4 text-sm font-medium text-white transition hover:bg-neutral-800 disabled:cursor-not-allowed disabled:bg-neutral-500"
       disabled={pending}
+      name="intent"
+      type="submit"
+      value="create"
     >
       {pending ? pendingLabel : label}
     </button>

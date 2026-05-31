@@ -2,10 +2,11 @@ services:
   app:
     build: .
     ports:
-      - "3000:3000"
+      - "3100:3100"
     environment:
       DATABASE_URL: file:./data/dev.db
       DEEPSEEK_API_KEY: ""
       DEEPSEEK_BASE_URL: https://api.deepseek.com
+      DEEPSEEK_MODEL: deepseek-v4-flash
     volumes:
       - ./prisma/data:/app/prisma/data
