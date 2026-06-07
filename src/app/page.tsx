@@ -66,6 +66,9 @@ export default async function Home({ searchParams }: PageProps) {
           <p className="text-sm text-neutral-500">本地任务中枢</p>
           <h1 className="mt-1 text-3xl font-semibold text-neutral-950">砚时</h1>
           <p className="mt-2 text-sm text-neutral-600">于书砚之间，理清每日之事。</p>
+          <Link className="mt-2 inline-block text-sm text-neutral-500 transition hover:text-neutral-950" href="/stats">
+            复盘统计
+          </Link>
         </div>
         <div className="grid grid-cols-2 gap-2 text-center text-sm sm:grid-cols-4 xl:w-[920px] xl:grid-cols-8">
           <SummaryItem active={view === "all"} href="/?view=all#task-list" label="全部任务" value={summary.total} />
