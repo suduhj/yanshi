@@ -26,6 +26,7 @@
 - “今日必须完成”由截止时间自动判断，“今日要做”由用户手动加入，不能混为一类。
 - 每日任务通过 `dailyCompletedOn` 记录当天完成情况，不要把它混入普通已完成任务。
 - `build` 脚本使用 `next build --webpack`，用于规避当前 Windows + Turbopack 文件锁问题。
+- 本地备份文件保存到 `prisma/backups/`，属于用户数据，不提交到 Git。
 
 ## Git 操作边界
 
