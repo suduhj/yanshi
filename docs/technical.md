@@ -108,6 +108,16 @@ DeepSeek 任务草稿解析继续使用 JSON 输出；AI 回顾使用普通文�
 
 提醒建议和顶部统计通过 `view`、`focusTask` 查询参数跳转到任务列表或具体任务。客户端只负责滚动和短暂高亮，不负责改变任务状态。
 
+## 本地备份
+
+A1 自动备份使用 `src/lib/backup/backup.ts` 作为服务端备份模块。备份目录固定为 `prisma/backups/`，文件名为 `yanshi-backup-YYYY-MM-DD-HHmmss.json`，时间按中国时间生成。
+
+备份 JSON 使用版本号 `version: 1`，包含 `exportedAt`、`chinaDateKey`、`tasks` 和 `taskEvents`。第一版只备份业务数据，不备份 `.env`、DeepSeek 密钥、SQLite 原始数据库文件或构建产物。
+
+恢复备份时先校验文件名、JSON 格式和版本，再在 Prisma transaction 中删除现有 `TaskEvent`、删除现有 `Task`，随后重建任务和事件。恢复失败时事务回滚。
+
+每日自动备份只在页面请求期间触发，不使用后台常驻进程。默认保留最近 7 份备份。
+
 ## 复盘统计
 
 E1/E2 数据可视化使用 `src/lib/tasks/stats.ts` 作为纯统计模块，输入当前任务和复盘事件，输出 `/stats` 页面所需的展示模型。
